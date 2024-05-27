@@ -1,88 +1,93 @@
-let cart = JSON.parse(localStorage.getItem('cart')) || [];
+function addToCart(productName, category, price, quantity) {
+    let cartItems = localStorage.getItem('cartItems');
+    cartItems = cartItems ? JSON.parse(cartItems) : {};
 
-function addToCart(productName, price, quantity) {
-    const product = {
-        name: productName,
-        price: parseFloat(price),
-        quantity: parseInt(quantity)
-    };
-    cart.push(product);
-    localStorage.setItem('cart', JSON.stringify(cart));
-    alert(`${productName} has been added to your cart.`);
-}
-
-function displayCart() {
-    const cartContainer = document.getElementById('cart-container');
-    cartContainer.innerHTML = ''; // Clear previous contents
-
-    if (cart.length === 0) {
-        cartContainer.innerHTML = '<p>Your cart is empty.</p>';
-        return;
+    const itemKey = productName.toLowerCase().replace(/\s+/g, '-');
+    const totalPrice = price * quantity;
+    if (cartItems[itemKey]) {
+        cartItems[itemKey].quantity += quantity;
+        cartItems[itemKey].totalPrice += totalPrice;
+    } else {
+        cartItems[itemKey] = {
+            productName: productName,
+            category: category,
+            price: price,
+            quantity: quantity,
+            totalPrice: totalPrice
+        };
     }
 
-    const table = document.createElement('table');
-    table.innerHTML = `
-        <thead>
+    localStorage.setItem('cartItems', JSON.stringify(cartItems));
+    alert(`${quantity} ${productName} added to cart!`);
+    window.location.href = 'shopping-cart.html';
+}
+
+function populateCart() {
+    let cartItems = localStorage.getItem('cartItems');
+    cartItems = cartItems ? JSON.parse(cartItems) : {};
+
+    const categories = {};
+
+    for (let key in cartItems) {
+        const item = cartItems[key];
+        if (!categories[item.category]) {
+            categories[item.category] = [];
+        }
+        categories[item.category].push(item);
+    }
+
+    const cartContainer = document.getElementById('cart-container');
+    cartContainer.innerHTML = ''; // Clear existing content
+
+    for (let category in categories) {
+        const table = document.createElement('table');
+        table.border = "1";
+
+        const caption = document.createElement('caption');
+        caption.textContent = category;
+        table.appendChild(caption);
+
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
             <tr>
-                <th>Services</th>
+                <th>Product Name</th>
                 <th>Price</th>
                 <th>Quantity</th>
                 <th>Total</th>
             </tr>
-        </thead>
-        <tbody>
-            ${cart.map(item => `
-                <tr>
-                    <td>${item.name}</td>
-                    <td>${item.price.toFixed(2)}</td>
-                    <td>${item.quantity}</td>
-                    <td>${(item.price * item.quantity).toFixed(2)}</td>
-                </tr>
-            `).join('')}
-        </tbody>
-    `;
-    cartContainer.appendChild(table);
+        `;
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        let categoryTotal = 0;
+        categories[category].forEach(item => {
+            categoryTotal += item.totalPrice;
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${item.productName}</td>
+                <td>$${item.price.toFixed(2)}</td>
+                <td>${item.quantity}</td>
+                <td>$${item.totalPrice.toFixed(2)}</td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        const totalRow = document.createElement('tr');
+        totalRow.innerHTML = `
+            <td colspan="3"><strong>Total</strong></td>
+            <td><strong>$${categoryTotal.toFixed(2)}</strong></td>
+        `;
+        tbody.appendChild(totalRow);
+
+        table.appendChild(tbody);
+        cartContainer.appendChild(table);
+    }
 }
 
 function clearCart() {
-    cart = [];
-    localStorage.removeItem('cart');
-    displayCart();
+    localStorage.removeItem('cartItems');
+    populateCart();
 }
 
-function handleFormSubmit(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const userInfo = Object.fromEntries(formData.entries());
-    const order = {
-        user: userInfo,
-        cart: cart
-    };
-
-    fetch('submit_order.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(order)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.message === 'Order submitted successfully!') {
-            alert(data.message);
-            clearCart();
-            event.target.reset();
-        } else {
-            alert(data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error submitting order:', error);
-        alert('There was an error submitting your order. Please try again.');
-    });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    displayCart();
-    document.getElementById('checkout-form').addEventListener('submit', handleFormSubmit);
-});
+// Call populateCart on window load to ensure the cart is populated when the page loads
+window.onload = populateCart;
